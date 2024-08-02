@@ -1,0 +1,7 @@
+data/
+results/
+*.obj
+*.ply
+.vscode/
+__pycache__/
+wandb/

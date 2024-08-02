@@ -1,0 +1,22 @@
+{
+    "num_epochs": 3000,
+    "warmup_epochs": 1000,
+    "dataset": "data/sphere/sphere",
+    "batch_size": 10000,
+    "sampling_percentiles": [0.5, 0.5 ],
+    "batches_per_epoch": 1,
+    "checkpoint_path": "results/sphere/",
+    "experiment_name": "experiment",
+    "epochs_to_checkpoint": 8001,
+    "loss_weights": [ 1e2, 1e4, 1e4, 1e1 ],
+    "optimizer": {
+        "type": "adam",
+        "lr": 1e-5
+    },
+    "network": {
+        "hidden_layer_nodes": [64,64,64,64,64,64,64,64],
+        "w0": 30,
+        "pretrained_dict": "None"
+    },
+    "resolution": 256
+}
