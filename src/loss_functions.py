@@ -20,16 +20,19 @@ def neumann_boundary(gt_sdf, gt_vectors, pred_vectors):
 def eikonal_equation(gradient):
     return torch.abs(gradient.norm(dim=-1) - 1.)
     
-def regularization_siren(gt_sdf, pred_sdf, radius=1e1):
+def regularization_siren(gt_sdf, pred_sdf, radius=1e2):
     """
     This function penalizes the pred_sdf of points in gt_sdf!=0
     Used in SIREN's papers
     """
     return torch.where(
            gt_sdf != 0,
-           torch.exp(- (radius * pred_sdf) ** 2),
+           torch.exp(- radius * torch.abs(pred_sdf)),
            torch.zeros_like(pred_sdf)
         )
+
+def regularization_total_variation( gradient, coords ):
+    return dif.gradient( gradient.norm( dim=-1 ), coords ).norm( dim=-1 )
 
 def loss_siren( model, model_input, gt,  loss_weights ):
     model_output = model(model_input)
@@ -46,5 +49,6 @@ def loss_siren( model, model_input, gt,  loss_weights ):
         'eikonal_equation': eikonal_equation(gradient).mean() * loss_weights[0],
         'dirichlet_boundary': dirichlet_boundary(gt_sdf, pred_sdf).mean() * loss_weights[1],
         'neumann_boundary': neumann_boundary(gt_sdf, gt_normals, gradient).mean() * loss_weights[2] ,
-        'regularization_siren': regularization_siren( gt_sdf, pred_sdf).mean() * loss_weights[3]
+        'regularization_siren': regularization_siren( gt_sdf, pred_sdf).mean() * loss_weights[3],
+        'regularization_total_variation': regularization_total_variation( gradient, coords ).mean() * loss_weights[4]
     }

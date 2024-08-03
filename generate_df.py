@@ -75,15 +75,15 @@ def generate_df( model_path, output_path, options ):
     plt.rcParams.update({'font.size': 16})
     fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10,4), dpi=500)
 
-    pos = imagen_dist( axes[0] , pred_distances, [0], color_map='bwr_r', eps=options['surf_thresh'], contour=True)
-    imagen_dist( axes[1] , pred_grad_norm, [0], color_map='bwr_r', eps=-1)
+    pos1 = imagen_dist( axes[0] , pred_distances, [0], color_map='bwr_r', eps=options['surf_thresh'], contour=True)
+    pos2 = axes[1].imshow( pred_grad_norm.reshape((options['width'], options['width'])), cmap='plasma', vmin=0, vmax=np.max(pred_grad_norm) )
 
     axes[0].set_title(r'$f$')
+    plt.colorbar(pos1,ax=axes[0])
     axes[1].set_title(r'$\left \| \nabla f \right \|$')
-    
-    fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    fig.colorbar(pos, cax=cbar_ax)
+    plt.colorbar(pos2,ax=axes[1])
+
+    fig.tight_layout()
     fig.savefig(output_path + 'distance_fields.png')
 
     im = Image.fromarray((grad_map.reshape(np.sqrt(SAMPLES).astype(np.uint32), np.sqrt(SAMPLES).astype(np.uint32), 3) * 255).astype(np.uint8))
