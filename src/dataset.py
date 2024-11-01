@@ -64,69 +64,73 @@ class PointCloud(IterableDataset):
                 samplesOffSurface=self.samplesFarSurface
             )
 
-def sampleTrainingDataHarmonic(
+def shortestDistance( P, X ):
+    sqnormP = torch.sum( P * P, dim=1)
+    sqnormX = torch.sum( X * X, dim=1)
+
+    shDistances, _ = torch.min( sqnormX.repeat( P.shape[0], 1 ) - 2 * ( P @ X.T ), dim=1 )
+
+    return torch.sqrt( shDistances + sqnormP )
+
+def sampleTrainingData2D(
         surface_pc: np.array,
         surface_normals: np.array,
+        medial_axis: np.array,
         samplesOnSurface: int,
-        samplesDomain: int,
-        samplesBoundary: int,
-        queryTree: KDTree,
-        domainBounds: tuple = ([-1, -1, -1], [1, 1, 1]),
+        samplesOffSurface: int,
+        device:torch.device,
+        domainBounds: tuple = ([-1, -1], [1, 1]),
 ):
     samples = np.random.randint(0, surface_pc.shape[0], samplesOnSurface)
     surfacePoints = surface_pc[ samples, : ]
     surfaceNormals = surface_normals[ samples, :]
 
-    domainPoints = np.random.uniform(
+    domainPoints = torch.from_numpy( np.random.uniform(
         domainBounds[0], domainBounds[1],
-        (samplesDomain, 3)
-    )
+        (samplesOffSurface, 2)
+    )).to(device)
+    
+    medialAxisPoints = torch.from_numpy( medial_axis ).to(device)
 
-    boundaryPoints = np.random.uniform(
-        domainBounds[0], domainBounds[1],
-        (samplesBoundary, 3)
-    )
+    domainPointsMADistance = shortestDistance( domainPoints, medialAxisPoints )
+    eikonalEquationMask = ( (domainPointsMADistance > 0.001) * 2) - 1
 
-    sel = np.random.randint(0, 3, samplesBoundary)
-    boundaryPoints[ np.arange(len(boundaryPoints)), sel] = np.random.choice( [-1,1], samplesBoundary)
-    boundaryPointsDistance, _ = queryTree.query( boundaryPoints, k=1 )
 
     fullSamples = torch.row_stack((
-        torch.from_numpy( surfacePoints ),
-        torch.from_numpy( domainPoints ),
-        torch.from_numpy( boundaryPoints )
+        torch.from_numpy( surfacePoints ).to(device),
+        domainPoints,
+        medialAxisPoints
     ))
     fullNormals = torch.row_stack((
-        torch.from_numpy( surfaceNormals ),
-        torch.from_numpy( np.zeros_like( domainPoints ) ),
-        torch.from_numpy( np.zeros_like( boundaryPoints ) )
+        torch.from_numpy( surfaceNormals ).to(device),
+        torch.zeros_like( domainPoints  ).to(device),
+        torch.zeros_like( medialAxisPoints ).to(device)
     ))
     fullSDFs = torch.row_stack((
-        torch.zeros( (samplesOnSurface, 1) ),
-        -1 * torch.ones( (samplesDomain, 1) ),
-        torch.from_numpy( boundaryPointsDistance.reshape( (samplesBoundary,1) ) )
+        torch.zeros( (samplesOnSurface, 1) ).to(device),
+        eikonalEquationMask.reshape( (samplesOffSurface, 1) ),
+        torch.ones( (len(medial_axis), 1) ).to(device) * -1 
     ))
 
     return fullSamples.float().unsqueeze(0), fullNormals.float().unsqueeze(0), fullSDFs.float().unsqueeze(0)
 
-
-class PointCloudHarmonic(IterableDataset):
+class PointCloud2D(IterableDataset):
     def __init__(self, pointCloudPath: str,
                  batchSize: int,
                  samplingPercentiles: list,
-                 batchesPerEpoch : int ):
+                 batchesPerEpoch : int,
+                 device: torch.device ):
         super().__init__()
 
-        print(f"Loading mesh \"{pointCloudPath}\".")
+        print(f"Loading point cloud \"{pointCloudPath}\".")
 
-        self.points, self.normals = load(pointCloudPath + '_pc.obj')
-        self.queryTree = KDTree( self.points )
-
+        file = np.load( pointCloudPath + '_pc.npz' )
+        self.points, self.normals, self.medial_axis = file['points'], file['normals'], file['medial_axis']
+        
         self.batchSize = batchSize
         self.samplesOnSurface = int(self.batchSize * samplingPercentiles[0])
         self.samplesFarSurface = int(self.batchSize * samplingPercentiles[1])
-        self.samplesBoundary = int(self.batchSize * samplingPercentiles[2])
-
+        self.device = device
         print(f"Fetching {self.samplesOnSurface} on-surface points per iteration.")
         print(f"Fetching {self.samplesFarSurface} far from surface points per iteration.")
 
@@ -134,11 +138,11 @@ class PointCloudHarmonic(IterableDataset):
         
     def __iter__(self):
         for _ in range(self.batchesPerEpoch):
-            yield sampleTrainingDataHarmonic(
+            yield sampleTrainingData2D(
                 surface_pc=self.points,
                 surface_normals=self.normals,
+                medial_axis=self.medial_axis,
                 samplesOnSurface=self.samplesOnSurface,
-                samplesDomain=self.samplesFarSurface,
-                samplesBoundary=self.samplesBoundary,
-                queryTree=self.queryTree
+                samplesOffSurface=self.samplesFarSurface,
+                device=self.device
             )

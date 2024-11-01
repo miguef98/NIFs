@@ -36,4 +36,4 @@ def normalize( arr ):
         return arr / np.linalg.norm(arr)
     
     norm_arr = np.linalg.norm( arr, axis=1 )
-    return arr / np.vstack( [norm_arr, norm_arr, norm_arr] ).T
+    return arr / np.vstack( [norm_arr] * arr.shape[1] ).T

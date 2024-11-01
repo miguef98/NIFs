@@ -49,4 +49,3 @@ def preprocessMesh( outputPath, meshFile, surfacePoints=1e5 ):
         for vertex, normal in zip(vertices, normals):
             output_file.write(f'{vertex[0]} {vertex[1]} {vertex[2]} {normal[0]} {normal[1]} {normal[2]}\n')
     
-    
