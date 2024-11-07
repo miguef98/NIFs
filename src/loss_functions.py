@@ -68,8 +68,21 @@ def eikonal_medial_axis( gt_sdf, gradient ):
         (gradient.norm(dim=-1) - 1.) ** 2,
     )
 
-#def regularization_total_variation( gradient, coords ):
-#    return dif.gradient( gradient.norm( dim=-1 ), coords ).norm( dim=-1 )
+def regularization_total_variation_medial_axis( gt_sdf, gradient, coords ):
+    return torch.where(
+        gt_sdf.flatten() == -1,
+        gradient.norm(dim=-1) ** 2,
+        dif.gradient( gradient.norm( dim=-1 ), coords ).norm( dim=-1 ),
+    )
+    #return dif.gradient( gradient.norm( dim=-1 ), coords ).norm( dim=-1 )
+
+def hint( model, coords, gt_sdf, gt_normals ):
+    mask = gt_sdf == 0
+    offsets = (torch.randn( torch.sum(mask) ).to( gt_sdf.device ) * 0.03 ).reshape( (1, torch.sum(mask), 1) )
+    output = model( coords[ :, mask.flatten(), : ] + offsets * gt_normals[ :, mask.flatten(), : ] )
+    return (
+        ( output["model_out"] - offsets ) ** 2
+    )
 
 def loss_medial_axis( model, model_input, gt, loss_weights ):
     model_output = model(model_input)
@@ -86,6 +99,7 @@ def loss_medial_axis( model, model_input, gt, loss_weights ):
         'eikonal_equation': eikonal_medial_axis(gt_sdf, gradient).mean() * loss_weights[0],
         'dirichlet_boundary': dirichlet_boundary(gt_sdf, pred_sdf).mean() * loss_weights[1],
         'neumann_boundary': neumann_boundary(gt_sdf, gt_normals, gradient).mean() * loss_weights[2] ,
-        #'regularization_siren': regularization_siren( gt_sdf, pred_sdf).mean() * loss_weights[3],
-        'regularization_total_variation': regularization_total_variation( gradient, coords ).mean() * loss_weights[4]
+        'regularization_siren': regularization_siren( gt_sdf, pred_sdf).mean() * loss_weights[3],
+        #'hint': hint( model, coords, gt_sdf, gt_normals ).mean() * loss_weights[3],
+        'regularization_total_variation': regularization_total_variation_medial_axis( gt_sdf, gradient, coords ).mean() * loss_weights[4]
     }

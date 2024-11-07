@@ -1,18 +1,18 @@
 {
     "num_epochs": 20000,
     "warmup_epochs": 10000,
-    "dataset": "data/bezier/bezier",
+    "dataset": "data/bezier2/bezier2",
     "batch_size": 20000,
     "sampling_percentiles": [ 0.5, 0.5 ],
     "batches_per_epoch": 1,
-    "checkpoint_path": "results/bezier/",
+    "checkpoint_path": "results/bezier2/",
     "experiment_name": "experiment",
     "epochs_to_checkpoint": 8001,
-    "loss_weights": [ 1000, 10000, 1000, 200 , 50 ],
+    "loss_weights": [ 10000, 10000, 10000, 10000 , 500 ],
     "optimizer": {
         "type": "adam",
-        "warmup_lr": 1e-5,
-        "lr": 1e-6
+        "warmup_lr": 1e-4,
+        "lr": 1e-5
     },
     "network": {
         "hidden_layer_nodes": [64,64,64,64,64,64],

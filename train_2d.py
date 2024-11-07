@@ -235,7 +235,7 @@ def setup_train( parameter_dict, cuda_device ):
         "optimizer": optimizer,
         "optimizer_type": opt_params["type"],
         "warmup_epochs": parameter_dict.get('warmup_epochs',0),
-        "warmup_lr": parameter_dict.get('warmup_lr', 1e-4),
+        "warmup_lr": opt_params.get('warmup_lr', 1e-4),
         "lr": opt_params["lr"],
         "loss_weights": parameter_dict["loss_weights"],
         "resolution": parameter_dict.get('resolution', 256)

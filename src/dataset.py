@@ -93,7 +93,7 @@ def sampleTrainingData2D(
     medialAxisPoints = torch.from_numpy( medial_axis ).to(device)
 
     domainPointsMADistance = shortestDistance( domainPoints, medialAxisPoints )
-    eikonalEquationMask = ( (domainPointsMADistance > 0.001) * 2) - 1
+    eikonalEquationMask = ( (domainPointsMADistance > 0.005) * 2) - 1
 
 
     fullSamples = torch.row_stack((
