@@ -1,26 +1,19 @@
-import torch
 import numpy as np
 from scipy import sparse
 
 def inverse( v ):
     return np.divide( np.ones_like(v), v )
-    #return np.where(
-    #    v < 1e-7,
-    #    np.ones_like(v) * 1e5 ,
-    #    np.divide( np.ones_like(v), v )
-    #).reshape( v.shape )
 
-
-def gridLaplacian( N, mask, boundary='dirichlet' ):
+def gridLaplacian( N, boundary='dirichlet' ):
     L = sparse.csr_matrix((N**2, N**2))
 
     ones = np.ones(N**2)
     decoupled_ones = ones - (np.arange(1,N**2 + 1) % N == 0)
 
-    L.setdiag( decoupled_ones * np.roll( mask, 1 ), k=1 )
-    L.setdiag( decoupled_ones * np.roll( mask, -1 ), k=-1)
-    L.setdiag( ones * np.roll( mask, -N ), k=-N)
-    L.setdiag( ones * np.roll( mask, N ), k=N)
+    L.setdiag( decoupled_ones, k=1 )
+    L.setdiag( decoupled_ones, k=-1)
+    L.setdiag( ones, k=-N)
+    L.setdiag( ones, k=N)
 
     if boundary=='neumann':
         L.setdiag( -1 * ( 
@@ -30,14 +23,32 @@ def gridLaplacian( N, mask, boundary='dirichlet' ):
             np.pad( L.diagonal(-N), (N,0), 'constant', constant_values=(0,0))
         ))
     elif boundary=='dirichlet':
-        L.setdiag( -4 * ones * mask )
+        L.setdiag( -4 * ones )
     else:
         raise ValueError('Uknown boundary condition')
 
     h = 2 / (N-1)
     return L * 1 / (h ** 2)
 
-def gridDxMasked( N, mask, boundary='dirichlet' ):
+def gridLaplacianDirichlet( N, mask ):
+    L = sparse.csr_matrix((N**2, N**2))
+
+    ones = np.ones(N**2) 
+    decoupled_ones = ones - (np.arange(1,N**2 + 1) % N == 0)
+
+    L.setdiag( decoupled_ones * mask.astype(np.float64), k=1 )
+    L.setdiag( decoupled_ones * np.roll(mask.astype(np.float64), -1), k=-1)
+    L.setdiag( ones * np.roll(mask.astype(np.float64), -N), k=-N)
+    L.setdiag( ones * mask.astype(np.float64), k=N)
+    
+    h = 2 / (N-1)
+    L *= 1 / (h ** 2)
+    
+    L.setdiag( (-4 / h**2) * ones * mask.astype(np.float64) + ones * np.logical_not(mask).astype(np.float64))
+
+    return L
+
+def gridDx( N, boundary='dirichlet' ):
     h = 2 / (N-1)
     invert = lambda x : np.where( x != 0, np.zeros_like(x), np.ones_like(x) )
 
@@ -45,8 +56,8 @@ def gridDxMasked( N, mask, boundary='dirichlet' ):
     decoupled_ones = ones - (np.arange(1,N**2 + 1) % N == 0)    
     
     Gx = sparse.csr_matrix( (N**2, N**2) )
-    Gx.setdiag( decoupled_ones * np.roll( mask, 1 ), k=1 )
-    Gx.setdiag( -1 * decoupled_ones * np.roll( mask, -1 ), k=-1)
+    Gx.setdiag( decoupled_ones, k=1 )
+    Gx.setdiag( -1 * decoupled_ones, k=-1)
     
     if boundary=='neumann':
         Gx.setdiag( ( 
@@ -62,15 +73,15 @@ def gridDxMasked( N, mask, boundary='dirichlet' ):
 
     return Gx
 
-def gridDxxMasked(N, mask, boundary='dirichlet'):
+def gridDxx(N, boundary='dirichlet'):
     h = 2 / (N-1)
 
     ones = np.ones(N**2)
     decoupled_ones = ones - (np.arange(1,N**2 + 1) % N == 0)    
     
     Gx = sparse.csr_matrix( (N**2, N**2) )
-    Gx.setdiag( decoupled_ones * np.roll( mask, 1 ), k=1 )
-    Gx.setdiag( decoupled_ones * np.roll( mask, -1 ), k=-1)
+    Gx.setdiag( decoupled_ones, k=1 )
+    Gx.setdiag( decoupled_ones, k=-1)
     
     if boundary=='neumann':
         Gx.setdiag( -1 * ( 
@@ -78,7 +89,7 @@ def gridDxxMasked(N, mask, boundary='dirichlet'):
             np.pad( Gx.diagonal(-1), (1,0), 'constant', constant_values=(0,0))
         ))
     elif boundary=='dirichlet':
-        Gx.setdiag( -2 * ones * mask )
+        Gx.setdiag( -2 * ones )
     else:
         raise ValueError('Uknown boundary condition')
     
@@ -86,14 +97,14 @@ def gridDxxMasked(N, mask, boundary='dirichlet'):
 
     return Gx
 
-def gridDyyMasked(N, mask, boundary='dirichlet'):
+def gridDyy(N, boundary='dirichlet'):
     h = 2 / (N-1)
 
     ones = np.ones(N**2)
     
     Gy = sparse.csr_matrix( (N**2, N**2) )
-    Gy.setdiag( ones * np.roll( mask, N ), k=N )
-    Gy.setdiag( ones * np.roll( mask, -N ), k=-N )
+    Gy.setdiag( ones, k=N )
+    Gy.setdiag( ones, k=-N )
 
     if boundary=='neumann':
         Gy.setdiag( -1 * ( 
@@ -101,7 +112,7 @@ def gridDyyMasked(N, mask, boundary='dirichlet'):
             np.pad( Gy.diagonal(-N), (N,0), 'constant', constant_values=(0,0))
         ))
     elif boundary=='dirichlet':
-        Gy.setdiag( -2 * ones * mask)
+        Gy.setdiag( -2 * ones)
     else:
         raise ValueError('Uknown boundary condition')
     
@@ -109,7 +120,7 @@ def gridDyyMasked(N, mask, boundary='dirichlet'):
 
     return Gy
 
-def gridDxyMasked(N, mask, boundary='dirichlet'):
+def gridDxy(N, boundary='dirichlet'):
     h = 2 / (N - 1)
     invert = lambda x : np.where( x != 0, np.zeros_like(x), np.ones_like(x) )
     
@@ -118,10 +129,10 @@ def gridDxyMasked(N, mask, boundary='dirichlet'):
     decoupled_ones_bx = np.roll( decoupled_ones_fx, 1 )
     
     Gxy = sparse.csr_matrix((N**2, N**2))
-    Gxy.setdiag( np.roll( decoupled_ones_fx, N+1) * np.roll(mask, N + 1), k=N + 1)  # Forward in both x and y
-    Gxy.setdiag(- np.roll( decoupled_ones_bx, N-1 ) * np.roll(mask, N - 1), k=N - 1) # Backward in x, forward in y
-    Gxy.setdiag(- np.roll( decoupled_ones_fx, -N+1) * np.roll(mask, -N + 1), k=-N + 1) # Forward in x, backward in y
-    Gxy.setdiag( np.roll( decoupled_ones_bx, -N-1 ) * np.roll(mask, -N - 1), k=-N - 1) # Backward in both x and y
+    Gxy.setdiag( np.roll( decoupled_ones_fx, N+1), k=N + 1)  # Forward in both x and y
+    Gxy.setdiag(- np.roll( decoupled_ones_bx, N-1 ), k=N - 1) # Backward in x, forward in y
+    Gxy.setdiag(- np.roll( decoupled_ones_fx, -N+1), k=-N + 1) # Forward in x, backward in y
+    Gxy.setdiag( np.roll( decoupled_ones_bx, -N-1 ), k=-N - 1) # Backward in both x and y
     
     if boundary == 'dirichlet':
         pass
@@ -140,15 +151,15 @@ def gridDxyMasked(N, mask, boundary='dirichlet'):
     return Gxy
 
 
-def gridDyMasked( N, mask, boundary='dirichlet'  ):
+def gridDy( N, boundary='dirichlet'  ):
     h = 2 / (N-1)
     invert = lambda x : np.where( x != 0, np.zeros_like(x), np.ones_like(x) )
 
     ones = np.ones(N**2)
     
     Gy = sparse.csr_matrix( (N**2, N**2) )
-    Gy.setdiag( ones * np.roll( mask, N ), k=N )
-    Gy.setdiag( -1 * ones * np.roll( mask, -N ), k=-N )
+    Gy.setdiag( ones, k=N )
+    Gy.setdiag( -1 * ones, k=-N )
 
     if boundary=='neumann':
         Gy.setdiag(  ( 
@@ -164,9 +175,9 @@ def gridDyMasked( N, mask, boundary='dirichlet'  ):
 
     return Gy
 
-def gridIntrinsicGradient(  N, dfX, mask, boundary='dirichlet' ):
-    Gx = gridDxMasked( N, mask, boundary=boundary )
-    Gy = gridDyMasked( N, mask, boundary=boundary )
+def gridIntrinsicGradient(  N, dfX, boundary='dirichlet' ):
+    Gx = gridDx( N, boundary=boundary )
+    Gy = gridDy( N, boundary=boundary )
 
     sqnorm_dfX = np.sum( dfX ** 2, axis=1 )
 
@@ -181,28 +192,28 @@ def gridIntrinsicGradient(  N, dfX, mask, boundary='dirichlet' ):
         Gy - D_dfX_y @ projected_gradient
     )
 
-def gridLaplaceBeltrami( N, dfX, mask, boundary='dirichlet' ):
+def gridLaplaceBeltrami( N, dfX, boundary='dirichlet' ):
     norm_dfX = np.sqrt( np.sum( dfX ** 2, axis=1 ) )
 
-    Gx = gridDxMasked( N, mask, boundary=boundary )
-    Gy = gridDyMasked( N, mask, boundary=boundary )
+    Gx = gridDx( N, boundary=boundary )
+    Gy = gridDy( N, boundary=boundary )
 
     D_norm_dfX = sparse.diags([ norm_dfX ], [0], shape=(N**2, N**2), format='csr')
     D_inv_norm_dfX = sparse.diags([ inverse(norm_dfX) ], [0], shape=(N**2, N**2), format='csr')
 
-    PGx, PGy = gridIntrinsicGradient( N, dfX, mask, boundary )
+    PGx, PGy = gridIntrinsicGradient( N, dfX, boundary )
 
     return D_inv_norm_dfX @ ( Gx @ D_norm_dfX @ PGx + Gy @ D_norm_dfX @ PGy )
 
-def gridLaplaceBeltramiTV( N, dfX, LfX, tv, mask, boundary='dirichlet' ):
-    L = gridLaplacian( N, mask, boundary=boundary)
+def gridLaplaceBeltramiTV( N, dfX, LfX, tv, boundary='dirichlet' ):
+    L = gridLaplacian( N, boundary=boundary)
 
-    Gx = gridDxMasked( N, mask, boundary=boundary )
-    Gy = gridDyMasked( N, mask, boundary=boundary )
+    Gx = gridDx( N, boundary=boundary )
+    Gy = gridDy( N, boundary=boundary )
 
-    Gxx = gridDxxMasked( N, mask, boundary=boundary )
-    Gyy = gridDyyMasked( N, mask, boundary=boundary )
-    Gxy = gridDxyMasked( N, mask, boundary=boundary )
+    Gxx = gridDxx( N, boundary=boundary )
+    Gyy = gridDyy( N, boundary=boundary )
+    Gxy = gridDxy( N, boundary=boundary )
 
     Dfx = sparse.csr_matrix( (N**2, N**2) )
     Dfx.setdiag( dfX[:,0], k=0)
@@ -224,9 +235,9 @@ def gridLaplaceBeltramiTV( N, dfX, LfX, tv, mask, boundary='dirichlet' ):
         (Dtvx * Dfx + Dtvy * Dfy) @ ( D_inv_norm_dfX ** 3 ) @ ( Dfx @ Gx + Dfy @ Gy )
     )
 
-def gridInstrinsicGradientBertalmio( N, fX, mask, boundary='dirichlet' ):
-    Gx = gridDxMasked( N, mask, boundary=boundary )
-    Gy = gridDyMasked( N, mask, boundary=boundary )
+def gridInstrinsicGradientBertalmio( N, fX, boundary='dirichlet' ):
+    Gx = gridDx( N, boundary=boundary )
+    Gy = gridDy( N, boundary=boundary )
 
     dfXx = (Gx @ fX).flatten()
     dfXy = (Gy @ fX).flatten()
@@ -246,9 +257,9 @@ def gridInstrinsicGradientBertalmio( N, fX, mask, boundary='dirichlet' ):
 
     return PGx, PGy
 
-def gridLaplaceBeltramiBertalmio( N, fX, mask, boundary='dirichlet' ):
-    Gx = gridDxMasked( N, mask, boundary=boundary )
-    Gy = gridDyMasked( N, mask, boundary=boundary )
+def gridLaplaceBeltramiBertalmio( N, fX, boundary='dirichlet' ):
+    Gx = gridDx( N, boundary=boundary )
+    Gy = gridDy( N, boundary=boundary )
 
     dfXx = (Gx @ fX).flatten()
     dfXy = (Gy @ fX).flatten()
@@ -259,6 +270,6 @@ def gridLaplaceBeltramiBertalmio( N, fX, mask, boundary='dirichlet' ):
     D_norm_dfX = sparse.diags([ norm_dfX ], [0], shape=(N**2, N**2), format='csr')
     D_inv_norm_dfX = sparse.diags([ inverse(norm_dfX) ], [0], shape=(N**2, N**2), format='csr')
     
-    PGx, PGy = gridInstrinsicGradientBertalmio( N, fX, mask, boundary=boundary )
+    PGx, PGy = gridInstrinsicGradientBertalmio( N, fX, boundary=boundary )
 
     return D_inv_norm_dfX @ ( Gx @ D_norm_dfX @ PGx + Gy @ D_norm_dfX @ PGy )
